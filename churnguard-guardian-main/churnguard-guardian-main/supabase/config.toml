@@ -1,0 +1,10 @@
+project_id = "hcohzytvsteqblcrkcqp"
+
+[functions.list-customers]
+verify_jwt = false
+
+[functions.analyze-customer]
+verify_jwt = false
+
+[functions.send-message]
+verify_jwt = false

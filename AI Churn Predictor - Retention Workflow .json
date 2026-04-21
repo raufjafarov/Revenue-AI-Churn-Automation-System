@@ -1,0 +1,803 @@
+{
+  "name": "AI Churn Predictor - Retention Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E",
+          "mode": "list",
+          "cachedResultName": "Hackathon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit#gid=0"
+        },
+        "options": {}
+      },
+      "name": "Get Customer Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -2224,
+        -16
+      ],
+      "id": "7eae82f1-f4fd-4e1a-a216-bb21c665eab4",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "c4cthEjLbrOMhDyX",
+          "name": "Meherrem's account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Müştəri məlumatları:\n- Ad: {{ $json.name }}\n- Şirkət: {{ $json.company }}\n- Seqment: {{ $json.segment }}\n- Aylıq gəlir: ₼{{ $json.monthly_revenue }}\n- Son alış-veriş: {{ $json.last_purchase_date }}\n- Şikayət sayı: {{ $json.complaints }}\n- Şikayət mətnləri: {{ $json.complaint_texts }}\n- Cəmi xərclənib: ₼{{ $json.total_spent }}",
+        "options": {
+          "systemMessage": "Sən müştəri saxlama (customer retention) üzrə ekspert analitiksən.\n\nSənə müştəri haqqında məlumatlar veriləcək. Sənin vəzifən:\n1. Müştərinin niyə narazı ola biləcəyini 2-3 cümlə ilə izah et\n2. Churn riskini 0-100 arasında qiymətləndir\n3. Əsas narazılıq səbəblərini sadalа\n\nCAVABI MÜTLƏQ JSON formatında ver:\n{\n  \"risk_score\": 85,\n  \"analysis\": \"Müştəri son 3 ayda...\",\n  \"reasons\": [\"Texniki dəstək gecikmələri\", \"Həll olunmamış şikayətlər\"],\n  \"urgency\": \"critical\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2000,
+        -16
+      ],
+      "id": "c8c47da2-90c1-4e84-83d5-17ad40920433",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Müştəri profili:\n- Ad: {{ $('Get Customer Data').item.json.name }}\n- Şirkət: {{ $('Get Customer Data').item.json.company }}\n- Aylıq gəlir: ₼{{ $('Get Customer Data').item.json.monthly_revenue }}\n\nAI Analiz nəticəsi:\n{{ $json.output }}\nƏsas narazılıq səbəbləri:{{ $json.output }}\n\nRisk səviyyəsi: {{ $json.output }}\n\nGöndərmə kanalı: ",
+        "options": {
+          "systemMessage": "Sən müştəri geri qazanma (win-back) strategiyası üzrə mütəxəssissən.\n\nSənə müştəri analizi və profili veriləcək. Sən:\n1. Bu konkret müştəri üçün fərdiləşdirilmiş (hyper-personalized) bir təklif yarat\n2. Mesajın mətni müştəriyə göndəriləcək, ona görə peşəkar amma səmimi olsun\n3. Konkret endirim/bonus/təklif daxil et\n\nCAVABI JSON formatında ver:\n{\n  \"strategy_summary\": \"Premium dəstək + 25% endirim\",\n  \"message_az\": \"Hörmətli Aynur xanım, TelePlus-un dəyərli...\",\n  \"offer_type\": \"discount\",\n  \"offer_value\": \"25%\",\n  \"follow_up_days\": 3,\n  \"escalation_needed\": true\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1648,
+        -16
+      ],
+      "id": "b0c81899-1923-4577-8677-c78d8f1c5482",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1936,
+        208
+      ],
+      "id": "07dad1fa-128b-4223-a8cb-4393e7695957",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "h6KW0aSJ4Pmow4Ou",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Agent1-in string output-unu JSON-a parse edirik\nconst raw = $input.first().json.output;\nconst customer = $('Get Customer Data').first().json;\n\nlet strategy;\ntry {\n  strategy = JSON.parse(raw.replace(/```json|```/g, '').trim());\n} catch (e) {\n  strategy = {\n    strategy_summary: 'Manual review',\n    message_az: raw,\n    offer_type: 'custom',\n    offer_value: 'N/A',\n    follow_up_days: 3,\n    escalation_needed: true\n  };\n}\n\nreturn [{\n  json: {\n    ...strategy,\n    customer_name: customer.name,\n    customer_email: customer.email,\n    customer_phone: customer.phone,\n    customer_company: customer.company,\n    customer_id: customer.customer_id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        -16
+      ],
+      "id": "92bd8c5c-bb71-40c1-bba3-5ce414d32d40",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1072,
+        -16
+      ],
+      "id": "a4d927a0-fe95-44a8-8a9b-618471f482b6",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e632b281-35b9-4a11-8ba5-b18a8e051027"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fbd1117d-a9cc-48d6-a797-eb2a9144669f",
+                    "leftValue": "={{ $json.body.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8d3b3c5d-bb41-4c3b-bb38-4d4cb4d85174",
+                    "leftValue": "={{ $json.body.channel }}",
+                    "rightValue": "both",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "both"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2224,
+        352
+      ],
+      "id": "f117aa94-7ae0-4c99-aec8-9e1c298fc7c8",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "={{ $json.body.customer_phone }}",
+        "toWhatsapp": true,
+        "message": "={{ $json.body.message_az }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        -1552,
+        320
+      ],
+      "id": "8425eff9-bb2b-4170-92ae-6d6fb3630a8f",
+      "name": "Send an SMS/MMS/WhatsApp message",
+      "credentials": {
+        "twilioApi": {
+          "id": "iHsBjT37jPS9dlFs",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.customer_email }}",
+        "subject": "={{ $json.body.customer_name }}, sizin üçün xüsusi təklifimiz var",
+        "emailType": "text",
+        "message": "={{ $json.body.message_az }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1552,
+        512
+      ],
+      "id": "cc980dc0-66f2-4bb2-b381-50800bacff1f",
+      "name": "Send a message",
+      "webhookId": "e1eef2f6-7aa2-4c6b-92e8-e8b2e8444193",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "RPOcmIHJybyzsQ7T",
+          "name": "Meherrem's account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// \"both\" seçildikdə eyni datanı iki dəfə qaytarırıq\nconst data = $input.first().json;\nreturn [\n  { json: { ...data, _send_channel: 'whatsapp' } },\n  { json: { ...data, _send_channel: 'email' } }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        576
+      ],
+      "id": "d5be7e6c-0399-4e33-b5ed-f348dc04c738",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E",
+          "mode": "list",
+          "cachedResultName": "Hackathon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1496657288,
+          "mode": "list",
+          "cachedResultName": "results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit#gid=1496657288"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Send Message').item.json.body.customer_id }}",
+            "customer_name": "={{ $('Send Message').item.json.body.customer_name }}",
+            "channel": "={{ $('Send Message').item.json.body.channel }}",
+            "offer_value": "={{ $('Send Message').item.json.body.offer_value }}",
+            "status": "Göndərilib",
+            "sent_at": "={{ new Date().toISOString() }}",
+            "strategy_summary": "={{ $('Send Message').item.json.body.strategy_summary }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "offer_value",
+              "displayName": "offer_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "strategy_summary",
+              "displayName": "strategy_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1328,
+        416
+      ],
+      "id": "66887c99-40e8-49e3-ac2b-11cc7e12be14",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "c4cthEjLbrOMhDyX",
+          "name": "Meherrem's account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"sent\",\n  \"channel\": \"{{ $node['Webhook'].json.body.channel }}\",\n  \"customer_id\": \"{{ $node['Webhook'].json.body.customer_id }}\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1104,
+        416
+      ],
+      "id": "bfa57531-8aed-4a40-b877-ac5b5185e772",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "true",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "49eec5dc-abed-47b2-8d49-a5cbcc58d00c"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1776,
+        576
+      ],
+      "id": "f7053c6b-e6c3-48ed-820c-82ec2d4cf930",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E",
+          "mode": "list",
+          "cachedResultName": "Hackathon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kLO2QJDJLvEhBrYrTtSFhRWUmGCyhVCgo4kGQTsxv_E/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2256,
+        880
+      ],
+      "id": "fd103c2f-43d7-4071-bae7-5b0c9c276a43",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "c4cthEjLbrOMhDyX",
+          "name": "Meherrem's account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2032,
+        880
+      ],
+      "id": "4f70c57b-01bb-4c12-ab60-b8292c70530e",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyze",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Analyze",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2448,
+        -16
+      ],
+      "id": "b4d44cfc-5db0-4fb7-88ce-e5d7bc03b21b",
+      "webhookId": "b8d99a5c-d2ce-4ba8-ad61-dfeca5580f8b"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sendmessage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Send Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2448,
+        368
+      ],
+      "id": "5ce8bd88-9cc3-4624-b32d-f48d34070e02",
+      "webhookId": "b8d99a5c-d2ce-4ba8-ad61-dfeca5580f8b"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "getcustomers",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "GetCustomers",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2464,
+        880
+      ],
+      "id": "7708b1b4-73e0-4e76-bf4f-76e3c5875fc7",
+      "webhookId": "b8d99a5c-d2ce-4ba8-ad61-dfeca5580f8b"
+    }
+  ],
+  "pinData": {
+    "Send Message": [
+      {
+        "json": {
+          "headers": {
+            "host": "ellisai.app.n8n.cloud",
+            "user-agent": "Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.3)",
+            "content-length": "668",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "accept-language": "*",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2a05:d019:eed:300a:adab:8d96:6a9d:b670",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "CH",
+            "cf-ray": "9edb683b0fae75ff-ZRH",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "traceparent": "00-019d9b66604e7376ad6743772c3b7235-be47dfc0b61b9894-01",
+            "x-forwarded-for": "2a05:d019:eed:300a:adab:8d96:6a9d:b670, 162.158.217.67",
+            "x-forwarded-host": "ellisai.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-44-74757dc4f8-ggxc4",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2a05:d019:eed:300a:adab:8d96:6a9d:b670"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "customer_id": "C-1001",
+            "customer_name": "Əliyev Rəşad",
+            "customer_email": "raufjafarov23@gmail.com",
+            "customer_phone": "994506363813",
+            "channel": "both",
+            "message_az": "Hörmətli Rəşad bəy, BakuTech MMC-nin dəyərli müştərisi olaraq Sizi narahat edən texniki problemlər üçün üzr istəyirik. Son dövrlərdə yaşadığınız narazılıqları nəzərə alaraq, Sizi Premium dəstək paketi ilə təmin edərək 30% endirimlə xidmətimizi təkmilləşdirmək istəyirik. Bizimlə əlaqə saxlayaraq bu imkandan istifadə edin. Sizə daha yaxşı xidmət göstərmək üçün buradayıq!",
+            "strategy_summary": "Premium dəstək + 30% endirim",
+            "offer_value": "30%"
+          },
+          "webhookUrl": "https://ellisai.app.n8n.cloud/webhook/sendmessage",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Get Customer Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send an SMS/MMS/WhatsApp message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an SMS/MMS/WhatsApp message": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Send an SMS/MMS/WhatsApp message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Message": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetCustomers": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "859b219e-0771-456f-a51a-b45ce95bee08",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "de8c1f49c151336917288decfd121516f55730143bbca23a9925956d0eb9ee72"
+  },
+  "id": "TSRMigq49nF9mrJK",
+  "tags": []
+}
